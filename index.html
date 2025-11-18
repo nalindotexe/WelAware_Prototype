@@ -137,45 +137,62 @@
 
   // --- matching: exact first, then fuzzy ---
   function findMatches(tokens){
-    const matches = [];
-    tokens.forEach(tok=>{
-      const t = norm(tok);
-      if (!t) return;
-      for(const allergen of ALLERGENS){
-        // check names
-        for(const n of allergen.names){
-          if (t === norm(n) || t.includes(norm(n)) || norm(n).includes(t)) {
-            matches.push({ allergen, token: tok, method: 'exact' });
-            throw_match_loop: null;
-            break;
-          }
+  const matches = [];
+  tokens.forEach(tok=>{
+    const t = norm(tok);
+    // skip empty or very short tokens (reduces false positives like "e" or "E")
+    if (!t || t.length <= 2) return;
+
+    for(const allergen of ALLERGENS){
+      let matched = false;
+
+      // 1) Exact name matches (strict)
+      for(const n of allergen.names){
+        if (t === norm(n)) {
+          matches.push({ allergen, token: tok, method: 'exact' });
+          matched = true;
+          break;
         }
-        // fuzzy
-        if (matches.find(m=>m.token===tok)) continue;
+      }
+      if (matched) break;
+
+      // 2) Conservative fuzzy match (only for tokens long enough to be meaningful)
+      //    Requires token length >= 4 to attempt fuzzy matching.
+      if (t.length >= 4) {
         for(const n of allergen.names){
           if (fuzzyMatchToken(t, norm(n))){
             matches.push({ allergen, token: tok, method: 'fuzzy' });
+            matched = true;
             break;
           }
         }
-        if (matches.find(m=>m.token===tok)) break;
+        if (matched) break;
       }
-    });
-    // dedupe by allergen.id
-    const dedup = {};
-    matches.forEach(m=>{
-      if(!dedup[m.allergen.id]) dedup[m.allergen.id]=m;
-    });
-    return Object.values(dedup);
-  }
+    }
+  });
+
+  // dedupe by allergen.id (preserve first match)
+  const dedup = {};
+  matches.forEach(m=>{
+    if(!dedup[m.allergen.id]) dedup[m.allergen.id] = m;
+  });
+  return Object.values(dedup);
+}
 
   // --- parse ingredient string into tokens ---
   function tokenizeIngredients(text){
-    // heuristics: replace newlines with comma, split on commas/slashes/semicolons
-    const t = text.replace(/\r/g,'\n').replace(/\n+/g,', ').replace(/\s*\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
-    const parts = t.split(/[,\/;]+/).map(s=>s.trim()).filter(Boolean);
-    return parts;
-  }
+  // heuristics: replace newlines with comma, remove parenthesis content, normalize whitespace
+  const t = (text || '')
+    .replace(/\r/g,'\n')
+    .replace(/\n+/g,', ')
+    .replace(/\s*\([^)]*\)/g,'')   // remove parenthetical notes
+    .replace(/\s+/g,' ')
+    .trim();
+  // split on common separators and remove empty pieces
+  const parts = t.split(/[,\/;]+/).map(s=>s.trim()).filter(Boolean);
+  // filter out tiny tokens (like single letters produced by noisy OCR)
+  return parts.filter(p => p.length > 2);
+}
 
   // --- UI wiring ---
   const video = document.getElementById('video');
