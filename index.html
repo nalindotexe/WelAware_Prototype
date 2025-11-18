@@ -172,7 +172,6 @@
   // --- parse ingredient string into tokens ---
   function tokenizeIngredients(text){
     // heuristics: replace newlines with comma, split on commas/slashes/semicolons
-    const tokens = tokenizeIngredients(text).filter(t => t.length > 2);
     const t = text.replace(/\r/g,'\n').replace(/\n+/g,', ').replace(/\s*\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
     const parts = t.split(/[,\/;]+/).map(s=>s.trim()).filter(Boolean);
     return parts;
