@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WelAware Scanner — Prototype</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;padding:16px;background:#f6f7fb}
+    h1{font-size:1.1rem;margin:0 0 12px}
+    #app{max-width:900px;margin:0 auto}
+    #video{width:100%;max-height:360px;background:#000;object-fit:cover}
+    .controls{display:flex;gap:8px;margin:8px 0}
+    button{padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:white;cursor:pointer}
+    #resultPanel{margin-top:12px;background:white;padding:12px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+    textarea{width:100%;height:120px;padding:8px;border-radius:6px;border:1px solid #ddd}
+    .flag{padding:8px;border-radius:6px;margin:6px 0;border-left:6px solid}
+    .high{border-color:#d9534f;background:#fff5f4}
+    .medium{border-color:#f0ad4e;background:#fffaf4}
+    .ok{border-color:#5cb85c;background:#f6fffa}
+    .small{font-size:0.9rem;color:#444}
+    #captureCanvas{display:none}
+    footer{margin-top:12px;font-size:0.8rem;color:#666}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Logo -->
+    <div style="text-align:center; margin-bottom: 12px;">
+        <img src="logo.png" 
+             alt="Site Logo" 
+             style="max-width:1600px; width:40%; height:auto; border-radius:12px;" />
+    </div>
+
+    <h1>WelAware Cosmetic Ingredient Allergen Scanner — Prototype </h1>
+
+    <video id="video" autoplay playsinline></video>
+    <div class="controls">
+      <button id="startCam">Start Camera</button>
+      <button id="captureBtn">Capture & Scan</button>
+      <button id="pasteBtn">Paste Ingredients</button>
+      <input id="upload" type="file" accept="image/*" style="display:none" />
+      <button id="uploadBtn">Upload Image</button>
+      <button id="stopCam">Stop Camera</button>
+    </div>
+
+    <div id="resultPanel">
+      <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <strong>OCR / Ingredient text (editable)</strong>
+        <button id="reparse">Re-check</button>
+      </div>
+      <textarea id="ocrText" placeholder="OCR output will appear here. You can edit if needed."></textarea>
+
+      <div style="margin-top:8px">
+        <strong>Matches</strong>
+        <div id="matches" style="margin-top:8px"></div>
+      </div>
+
+      <div style="margin-top:8px">
+        <strong>Captured Image (click to toggle)</strong>
+        <div>
+          <img id="capturedImg" src="" alt="" style="max-width:100%;display:none;border-radius:6px;margin-top:8px"/>
+        </div>
+      </div>
+
+      <p class="small" style="margin-top:8px;">
+        Prototype runs entirely in browser. If OCR fails, paste ingredients manually.
+      </p>
+    </div>
+
+    <canvas id="captureCanvas"></canvas>
+
+    <footer>
+      Tip: For best results, photograph a clear, flat ingredient panel with good lighting and minimal glare.
+    </footer>
+  </div>
+
+  <!-- Tesseract.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
+  <script>
+  // --- Simple India-focused allergen seed DB (small, prioritized) ---
+  const ALLERGENS = [
+    { id: 'fragrance', names: ['fragrance','parfum','aroma'], severity: 'high', notes: 'Common sensitizer; many fragrance components can cause allergic contact dermatitis.' },
+    { id: 'methylisothiazolinone', names: ['methylisothiazolinone','mi'], severity: 'high', notes: 'Powerful preservative; frequent allergen.' },
+    { id: 'methylchloroisothiazolinone', names: ['methylchloroisothiazolinone','mci'], severity: 'high', notes: 'Often combined with MI (MI/MCI).' },
+    { id: 'parabens', names: ['methylparaben','ethylparaben','propylparaben','butylparaben','isobutylparaben','paraben'], severity: 'medium', notes: 'Preservative family; concern for sensitivities in some users.' },
+    { id: 'formaldehyde_releasers', names: ['dmdm hydantoin','quaternium-15','imidazolidinyl urea','diazolidinyl urea','bronopol'], severity: 'high', notes: 'Formaldehyde releasers — known allergens.' },
+    { id: 'phenoxyethanol', names: ['phenoxyethanol'], severity: 'medium', notes: 'Common preservative; occasional irritation reported.' },
+    { id: 'triclosan', names: ['triclosan'], severity: 'medium', notes: 'Antimicrobial; restricted in some regions.' },
+    { id: 'bht', names: ['bht','butylated hydroxytoluene'], severity: 'medium', notes: 'Antioxidant; potential irritant.' },
+    { id: 'bha', names: ['bha','butylated hydroxyanisole'], severity: 'medium', notes: 'Antioxidant; potential irritant.' },
+    { id: 'linalool', names: ['linalool'], severity: 'medium', notes: 'Fragrance component — oxidation products can sensitise.' },
+    { id: 'linalyl_acetate', names: ['linalyl acetate','linalylacetate'], severity: 'medium', notes: 'Fragrance component.' },
+    { id: 'limonene', names: ['limonene'], severity: 'medium', notes: 'Common essential oil component; oxidised form can be allergenic.' },
+    { id: 'geraniol', names: ['geraniol'], severity: 'medium', notes: 'Fragrance allergen.' },
+    { id: 'eugenol', names: ['eugenol'], severity: 'medium', notes: 'Fragrance allergen (clove-like scent).' },
+    { id: 'cinnamal', names: ['cinnamal','cinnamaldehyde'], severity: 'medium', notes: 'Fragrance allergen (cinnamon aldehyde).' },
+    { id: 'cinnamyl_alcohol', names: ['cinnamyl alcohol','cinnamylalcohol'], severity: 'medium', notes: 'Fragrance allergen.' },
+    { id: 'benzyl_alcohol', names: ['benzyl alcohol'], severity: 'medium', notes: 'Solvent/preservative; occasional sensitiser.' },
+    { id: 'benzyl_salicylate', names: ['benzyl salicylate'], severity: 'medium', notes: 'Fragrance component' },
+    { id: 'phenylenediamine', names: ['p-phenylenediamine','phenylenediamine','ppd'], severity: 'high', notes: 'Hair dye component; strong allergen.' },
+    { id: 'alkyl_alcohols', names: ['denat','alcohol denat','ethanol','isopropyl alcohol'], severity: 'medium', notes: 'Can be irritating/drying to sensitive skin.' },
+    { id: 'essential_oils', names: ['tea tree oil','lavender oil','eucalyptus oil','peppermint oil'], severity: 'medium', notes: 'Some essential oils contain sensitizing constituents.' }
+  ];
+
+  // --- utility: simple normalized string ---
+  function norm(s){
+    return (s||'').toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/[()]/g,'').trim();
+  }
+
+  // --- simple Levenshtein distance for fuzzy matching ---
+  function levenshtein(a,b){
+    if (!a||!b) return Math.max(a?.length||0,b?.length||0);
+    a = a.split(''); b = b.split('');
+    const m = a.length, n = b.length;
+    const dp = Array.from({length:m+1},()=>Array(n+1).fill(0));
+    for(let i=0;i<=m;i++) dp[i][0]=i;
+    for(let j=0;j<=n;j++) dp[0][j]=j;
+    for(let i=1;i<=m;i++){
+      for(let j=1;j<=n;j++){
+        const cost = a[i-1]===b[j-1]?0:1;
+        dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+      }
+    }
+    return dp[m][n];
+  }
+
+  function fuzzyMatchToken(token, allergenName){
+    token = token.replace(/[^a-z0-9 ]/g,'').trim();
+    const a = allergenName.replace(/[^a-z0-9 ]/g,'').trim();
+    if (!a || !token) return false;
+    if (a.length <= 4) return token.includes(a) || a.includes(token);
+    const dist = levenshtein(token, a);
+    const ratio = dist / Math.max(a.length, token.length);
+    return ratio <= 0.25 || token.includes(a) || a.includes(token);
+  }
+
+  // --- matching: exact first, then fuzzy ---
+  function findMatches(tokens){
+    const matches = [];
+    tokens.forEach(tok=>{
+      const t = norm(tok);
+      if (!t) return;
+      for(const allergen of ALLERGENS){
+        // check names
+        for(const n of allergen.names){
+          if (t === norm(n) || t.includes(norm(n)) || norm(n).includes(t)) {
+            matches.push({ allergen, token: tok, method: 'exact' });
+            throw_match_loop: null;
+            break;
+          }
+        }
+        // fuzzy
+        if (matches.find(m=>m.token===tok)) continue;
+        for(const n of allergen.names){
+          if (fuzzyMatchToken(t, norm(n))){
+            matches.push({ allergen, token: tok, method: 'fuzzy' });
+            break;
+          }
+        }
+        if (matches.find(m=>m.token===tok)) break;
+      }
+    });
+    // dedupe by allergen.id
+    const dedup = {};
+    matches.forEach(m=>{
+      if(!dedup[m.allergen.id]) dedup[m.allergen.id]=m;
+    });
+    return Object.values(dedup);
+  }
+
+  // --- parse ingredient string into tokens ---
+  function tokenizeIngredients(text){
+    // heuristics: replace newlines with comma, split on commas/slashes/semicolons
+    const t = text.replace(/\r/g,'\n').replace(/\n+/g,', ').replace(/\s*\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
+    const parts = t.split(/[,\/;]+/).map(s=>s.trim()).filter(Boolean);
+    return parts;
+  }
+
+  // --- UI wiring ---
+  const video = document.getElementById('video');
+  const startCam = document.getElementById('startCam');
+  const stopCam = document.getElementById('stopCam');
+  const captureBtn = document.getElementById('captureBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const upload = document.getElementById('upload');
+  const ocrText = document.getElementById('ocrText');
+  const matchesDiv = document.getElementById('matches');
+  const capturedImg = document.getElementById('capturedImg');
+  const captureCanvas = document.getElementById('captureCanvas');
+  const reparseBtn = document.getElementById('reparse');
+  let stream = null;
+
+  startCam.addEventListener('click', async ()=>{
+    if (stream) return;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+      video.srcObject = stream;
+    } catch (e) {
+      alert('Could not open camera: ' + e.message);
+    }
+  });
+
+  stopCam.addEventListener('click', ()=>{
+    if (!stream) return;
+    stream.getTracks().forEach(t=>t.stop());
+    stream = null;
+    video.srcObject = null;
+  });
+
+  captureBtn.addEventListener('click', async ()=>{
+    // capture frame
+    if (!stream && !video.srcObject){
+      alert('Camera not running. Click Start Camera first or Upload an image.');
+      return;
+    }
+    const w = video.videoWidth || 1280;
+    const h = video.videoHeight || 720;
+    captureCanvas.width = w;
+    captureCanvas.height = h;
+    const ctx = captureCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.9);
+    capturedImg.src = dataUrl;
+    capturedImg.style.display = 'block';
+    await runOCR(dataUrl);
+  });
+
+  uploadBtn.addEventListener('click', ()=> upload.click());
+  upload.addEventListener('change', async (e)=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = async (ev)=>{
+      capturedImg.src = ev.target.result;
+      capturedImg.style.display = 'block';
+      await runOCR(ev.target.result);
+    };
+    reader.readAsDataURL(f);
+  });
+
+  document.getElementById('pasteBtn').addEventListener('click', ()=>{
+    const s = prompt('Paste ingredient list text here (comma-separated):');
+    if (s) {
+      ocrText.value = s;
+      processTextAndDisplay(s);
+    }
+  });
+
+  reparseBtn.addEventListener('click', ()=>{
+    processTextAndDisplay(ocrText.value || '');
+  });
+
+  capturedImg.addEventListener('click', ()=>{
+    capturedImg.style.display = capturedImg.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // run OCR using Tesseract.recognize (compatible with CDN build)
+async function runOCR(dataUrl){
+  ocrText.value = 'Recognizing... (this may take a few seconds)';
+  matchesDiv.innerHTML = '';
+  try {
+    // Tesseract.recognize returns a promise that resolves with result.data.text
+    const result = await Tesseract.recognize(
+      dataUrl,
+      'eng',
+      {
+        logger: m => {
+          // optional: show progress in console or UI
+          console.log(m);
+        }
+      }
+    );
+    const text = (result && result.data && result.data.text) ? result.data.text : '';
+    const cleaned = text.replace(/\n+/g,'\n').trim();
+    ocrText.value = cleaned;
+    processTextAndDisplay(cleaned);
+  } catch (e) {
+    ocrText.value = '';
+    alert('OCR failed: ' + e.message);
+    console.error('Tesseract error', e);
+  }
+}
+
+  function processTextAndDisplay(text){
+    const tokens = tokenizeIngredients(text);
+    const matches = findMatches(tokens);
+    renderMatches(tokens, matches);
+  }
+
+  function renderMatches(tokens, matches){
+    matchesDiv.innerHTML = '';
+    if (matches.length === 0){
+      const ok = document.createElement('div');
+      ok.className = 'flag ok';
+      ok.innerHTML = '<strong>No flagged allergens found</strong><div class="small">No matches from the seed allergen list. Consider editing the OCR text or adding more allergens to the DB.</div>';
+      matchesDiv.appendChild(ok);
+      return;
+    }
+    // sort: high first
+    matches.sort((a,b)=> (a.allergen.severity==='high'?0:1) - (b.allergen.severity==='high'?0:1));
+    matches.forEach(m=>{
+      const el = document.createElement('div');
+      el.className = 'flag ' + (m.allergen.severity==='high' ? 'high' : 'medium');
+      el.innerHTML = `<strong>${m.allergen.names[0].toUpperCase()}</strong> — matched token: "<em>${m.token}</em>"<div class="small">${m.allergen.notes} <strong>Severity:</strong> ${m.allergen.severity} <em>(${m.method})</em></div>`;
+      matchesDiv.appendChild(el);
+    });
+  }
+
+  // initial small demo text for quick test
+  ocrText.value = 'Aqua, Glycerin, Parfum (Fragrance), Methylisothiazolinone, Methylparaben, Linalool, Alcohol Denat.';
+
+  // quick auto-process the demo text on load
+  window.addEventListener('load', ()=> processTextAndDisplay(ocrText.value));
+  </script>
+</body>
+</html>
