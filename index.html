@@ -82,28 +82,204 @@
   <script>
   // --- Simple India-focused allergen seed DB (small, prioritized) ---
   const ALLERGENS = [
-    { id: 'fragrance', names: ['fragrance','parfum','aroma'], severity: 'high', notes: 'Common sensitizer; many fragrance components can cause allergic contact dermatitis.' },
-    { id: 'methylisothiazolinone', names: ['methylisothiazolinone'], severity: 'high', notes: 'Powerful preservative; frequent allergen.' },
-    { id: 'methylchloroisothiazolinone', names: ['methylchloroisothiazolinone','mci'], severity: 'high', notes: 'Often combined with MI (MI/MCI).' },
-    { id: 'parabens', names: ['methylparaben','ethylparaben','propylparaben','butylparaben','isobutylparaben','paraben'], severity: 'medium', notes: 'Preservative family; concern for sensitivities in some users.' },
-    { id: 'formaldehyde_releasers', names: ['dmdm hydantoin','quaternium-15','imidazolidinyl urea','diazolidinyl urea','bronopol'], severity: 'high', notes: 'Formaldehyde releasers — known allergens.' },
-    { id: 'phenoxyethanol', names: ['phenoxyethanol'], severity: 'medium', notes: 'Common preservative; occasional irritation reported.' },
-    { id: 'triclosan', names: ['triclosan'], severity: 'medium', notes: 'Antimicrobial; restricted in some regions.' },
-    { id: 'bht', names: ['bht','butylated hydroxytoluene'], severity: 'medium', notes: 'Antioxidant; potential irritant.' },
-    { id: 'bha', names: ['bha','butylated hydroxyanisole'], severity: 'medium', notes: 'Antioxidant; potential irritant.' },
-    { id: 'linalool', names: ['linalool'], severity: 'medium', notes: 'Fragrance component — oxidation products can sensitise.' },
-    { id: 'linalyl_acetate', names: ['linalyl acetate','linalylacetate'], severity: 'medium', notes: 'Fragrance component.' },
-    { id: 'limonene', names: ['limonene'], severity: 'medium', notes: 'Common essential oil component; oxidised form can be allergenic.' },
-    { id: 'geraniol', names: ['geraniol'], severity: 'medium', notes: 'Fragrance allergen.' },
-    { id: 'eugenol', names: ['eugenol'], severity: 'medium', notes: 'Fragrance allergen (clove-like scent).' },
-    { id: 'cinnamal', names: ['cinnamal','cinnamaldehyde'], severity: 'medium', notes: 'Fragrance allergen (cinnamon aldehyde).' },
-    { id: 'cinnamyl_alcohol', names: ['cinnamyl alcohol','cinnamylalcohol'], severity: 'medium', notes: 'Fragrance allergen.' },
-    { id: 'benzyl_alcohol', names: ['benzyl alcohol'], severity: 'medium', notes: 'Solvent/preservative; occasional sensitiser.' },
-    { id: 'benzyl_salicylate', names: ['benzyl salicylate'], severity: 'medium', notes: 'Fragrance component' },
-    { id: 'phenylenediamine', names: ['p-phenylenediamine','phenylenediamine','ppd'], severity: 'high', notes: 'Hair dye component; strong allergen.' },
-    { id: 'alkyl_alcohols', names: ['denat','alcohol denat','ethanol','isopropyl alcohol'], severity: 'medium', notes: 'Can be irritating/drying to sensitive skin.' },
-    { id: 'essential_oils', names: ['tea tree oil','lavender oil','eucalyptus oil','peppermint oil'], severity: 'medium', notes: 'Some essential oils contain sensitizing constituents.' }
-  ];
+
+  /* ------------------ FRAGRANCE & PERFUME ALLERGENS ------------------ */
+  {
+    id: 'fragrance',
+    names: ['fragrance', 'parfum', 'aroma'],
+    aliases: [],
+    severity: 'high',
+    notes: 'Common sensitizer; mixture of multiple fragrance molecules.'
+  },
+  {
+    id: 'linalool',
+    names: ['linalool'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Fragrance component; oxidized form can be allergenic.'
+  },
+  {
+    id: 'limonene',
+    names: ['limonene'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Essential oil component; oxidation products can be sensitizers.'
+  },
+  {
+    id: 'geraniol',
+    names: ['geraniol'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Fragrance allergen found in rose oil.'
+  },
+  {
+    id: 'citral',
+    names: ['citral'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Citrus-derived allergen used in fragrances.'
+  },
+  {
+    id: 'eugenol',
+    names: ['eugenol'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Clove-like fragrance allergen.'
+  },
+  {
+    id: 'cinnamal',
+    names: ['cinnamal', 'cinnamaldehyde'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Fragrance allergen in cinnamon oils.'
+  },
+
+  /* ------------------ PRESERVATIVES ------------------ */
+  {
+    id: 'methylisothiazolinone',
+    names: ['methylisothiazolinone'],
+    aliases: [],
+    severity: 'high',
+    notes: 'Powerful preservative; frequent allergen.'
+  },
+  {
+    id: 'methylchloroisothiazolinone',
+    names: ['methylchloroisothiazolinone'],
+    aliases: [],
+    severity: 'high',
+    notes: 'Commonly paired with MI.'
+  },
+  {
+    id: 'parabens',
+    names: [
+      'methylparaben', 'ethylparaben', 'propylparaben', 'butylparaben',
+      'isobutylparaben', 'paraben'
+    ],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Preservative family; mild sensitizers in some individuals.'
+  },
+  {
+    id: 'phenoxyethanol',
+    names: ['phenoxyethanol'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Preservative; may cause irritation.'
+  },
+  {
+    id: 'formaldehyde_releasers',
+    names: [
+      'dmdm hydantoin', 'imidazolidinyl urea', 'diazolidinyl urea',
+      'quaternium-15', 'bronopol'
+    ],
+    aliases: [],
+    severity: 'high',
+    notes: 'Formaldehyde releasers — known strong allergens.'
+  },
+
+  /* ------------------ ALCOHOLS / SOLVENTS ------------------ */
+  {
+    id: 'alcohols',
+    names: ['alcohol denat', 'ethanol', 'isopropyl alcohol', 'benzyl alcohol'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Can dry or irritate sensitive skin.'
+  },
+
+  /* ------------------ SUNSCREEN ACTIVES ------------------ */
+  {
+    id: 'oxybenzone',
+    names: ['oxybenzone', 'benzophenone-3'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'UV filter; known irritant for some users.'
+  },
+  {
+    id: 'octocrylene',
+    names: ['octocrylene'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'UV filter; reported allergies in some individuals.'
+  },
+
+  /* ------------------ ESSENTIAL OILS ------------------ */
+  {
+    id: 'tea_tree',
+    names: ['tea tree oil'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Essential oil; oxidation can cause irritation.'
+  },
+  {
+    id: 'lavender_oil',
+    names: ['lavender oil'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Contains linalool & linalyl acetate; may irritate sensitive skin.'
+  },
+
+  /* ------------------ DYES / COLORANTS ------------------ */
+  {
+    id: 'ppd',
+    names: ['p-phenylenediamine', 'phenylenediamine'],
+    aliases: ['ppd'],
+    severity: 'high',
+    notes: 'Strong allergen used in hair dyes.'
+  },
+  {
+    id: 'ci_dyes',
+    names: [
+      'ci 17200', 'ci 19140', 'ci 42090', 'ci 16035', 'ci 77491',
+      'ci 77492', 'ci 77499'
+    ],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Artificial colorants; some can irritate sensitive skin.'
+  },
+
+  /* ------------------ SURFACTANTS ------------------ */
+  {
+    id: 'sls',
+    names: ['sodium lauryl sulfate'],
+    aliases: ['sls'],
+    severity: 'medium',
+    notes: 'Very common irritant; strips skin barrier.'
+  },
+  {
+    id: 'sles',
+    names: ['sodium laureth sulfate'],
+    aliases: ['sles'],
+    severity: 'medium',
+    notes: 'Milder than SLS but still irritating for some.'
+  },
+
+  /* ------------------ NATURAL IRRITANTS ------------------ */
+  {
+    id: 'lanolin',
+    names: ['lanolin', 'lanolin alcohol'],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Wool-derived; common allergen in creams.'
+  },
+  {
+    id: 'cocoa_butter',
+    names: ['theobroma cacao', 'cocoa butter'],
+    aliases: [],
+    severity: 'low',
+    notes: 'Occasional irritant in acne-prone skin.'
+  },
+  {
+    id: 'coconut_derivatives',
+    names: [
+      'cocamidopropyl betaine',
+      'cocamide dea',
+      'cocomide mea'
+    ],
+    aliases: [],
+    severity: 'medium',
+    notes: 'Coconut-derived surfactants; common irritants.'
+  }
+];
 
   // --- utility: simple normalized string ---
   function norm(s){
